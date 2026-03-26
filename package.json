@@ -1,5 +1,5 @@
 {
-  "name": "ocusage",
+  "name": "@its-clawdia/ocusage",
   "version": "1.0.1",
   "description": "CLI tool for analyzing OpenClaw token usage and costs from local session logs",
   "type": "module",
