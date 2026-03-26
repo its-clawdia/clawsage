@@ -22,7 +22,7 @@ export function resolveSessionDir(customPath) {
 export function listSessionFiles(dir) {
   try {
     return fs.readdirSync(dir)
-      .filter(f => f.endsWith('.jsonl') && !f.includes('.reset.'))
+      .filter(f => f.includes('.jsonl'))
       .map(f => path.join(dir, f));
   } catch (err) {
     throw new Error(`Cannot read session directory: ${dir}\n${err.message}`);
@@ -34,8 +34,12 @@ export function listSessionFiles(dir) {
  * Returns: { id, timestamp, date, models, messages: [{timestamp, model, usage}] }
  */
 export async function parseSessionFile(filePath) {
+  // Handle both regular (.jsonl) and reset (.jsonl.reset.<timestamp>) files
+  const basename = path.basename(filePath);
+  const id = basename.replace(/\.jsonl(?:\.(?:reset|deleted)\..+)?$/, '');
+
   const session = {
-    id: path.basename(filePath, '.jsonl'),
+    id,
     filePath,
     timestamp: null,
     date: null,
