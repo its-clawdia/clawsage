@@ -1,6 +1,6 @@
 {
   "name": "clawsage",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "CLI tool for analyzing OpenClaw token usage and costs from local session logs",
   "type": "module",
   "bin": {
