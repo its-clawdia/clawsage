@@ -26,9 +26,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/its-clawdia/ocusage.git"
+    "url": "git+https://github.com/its-clawdia/clawsage.git"
   },
-  "homepage": "https://github.com/its-clawdia/ocusage#readme",
+  "homepage": "https://github.com/its-clawdia/clawsage#readme",
   "engines": {
     "node": ">=18"
   }
