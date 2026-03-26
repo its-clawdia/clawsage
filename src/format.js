@@ -274,3 +274,43 @@ export function printSessionReport(data, { breakdown = false } = {}) {
 
   console.log('');
 }
+
+/**
+ * Print by-kind report
+ */
+export function printKindReport(data) {
+  if (data.length === 0) {
+    console.log(yellow('No data found.'));
+    return;
+  }
+
+  console.log(bold(cyan('\n  OpenClaw Usage — By Kind\n')));
+
+  const headers = ['Kind', 'Sessions', 'Input', 'Output', 'Cache↑', 'Cache↓', 'Total Tokens', 'Cost'];
+  const aligns = ['left', 'right', 'right', 'right', 'right', 'right', 'right', 'right'];
+
+  let totalSessions = 0, totalTokens = 0, totalCost = 0;
+
+  const rows = data.map(d => {
+    totalSessions += d.sessions;
+    totalTokens += d.totalTokens;
+    totalCost += d.cost.total;
+    return [
+      bold(d.key),
+      fmtNum(d.sessions),
+      fmtTokens(d.input),
+      fmtTokens(d.output),
+      fmtTokens(d.cacheRead),
+      fmtTokens(d.cacheWrite),
+      fmtTokens(d.totalTokens),
+      fmtCost(d.cost.total),
+    ];
+  });
+
+  console.log(renderTable(headers, rows, aligns));
+  console.log('\n' + bold('  Totals: ') +
+    `${fmtNum(totalSessions)} sessions  ·  ` +
+    `${fmtTokens(totalTokens)} tokens  ·  ` +
+    `${bold(fmtCost(totalCost))} total cost`);
+  console.log('');
+}

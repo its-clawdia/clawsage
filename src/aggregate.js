@@ -119,4 +119,27 @@ export async function aggregateBySessions(sessionIter, { breakdown = false, time
   return sessions.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/**
+ * Aggregate sessions by kind (main, cron, hook, direct, group, tui, unknown)
+ */
+export async function aggregateByKind(sessionIter) {
+  const buckets = new Map();
+
+  for await (const session of sessionIter) {
+    const kind = session.kind || 'unknown';
+
+    if (!buckets.has(kind)) buckets.set(kind, emptyBucket(kind));
+    const bucket = buckets.get(kind);
+    bucket.sessions++;
+
+    for (const msg of session.messages) {
+      addUsage(bucket, msg.usage, msg.model);
+    }
+  }
+
+  return [...buckets.entries()]
+    .sort(([, a], [, b]) => b.cost.total - a.cost.total)
+    .map(([key, bucket]) => ({ ...bucket, models: [...bucket.models] }));
+}
+
 export { getISOWeek, getMonth };

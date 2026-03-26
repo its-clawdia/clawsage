@@ -10,6 +10,37 @@ import os from 'os';
 const DEFAULT_SESSION_DIR = path.join(os.homedir(), '.openclaw', 'agents', 'main', 'sessions');
 
 /**
+ * Load sessions.json and build a sessionId -> kind map
+ * Kinds: main, cron, hook, signal, whatsapp, tui, group, unknown
+ */
+export function loadSessionKinds(sessionDir) {
+  const metaPath = path.join(sessionDir, 'sessions.json');
+  const kindMap = new Map();
+
+  try {
+    const data = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
+    for (const [key, val] of Object.entries(data)) {
+      if (!val.sessionId) continue;
+      if (key.includes(':run:')) continue; // skip duplicate run entries
+
+      let kind = 'unknown';
+      if (key.includes(':cron:')) kind = 'cron';
+      else if (key.includes(':hook:')) kind = 'hook';
+      else if (key.includes(':signal:group:') || key.includes(':whatsapp:group:')) kind = 'group';
+      else if (key.includes(':signal:') || key.includes(':whatsapp:') || key.includes(':telegram:')) kind = 'direct';
+      else if (key.includes(':tui-')) kind = 'tui';
+      else if (key === 'agent:main:main') kind = 'main';
+
+      kindMap.set(val.sessionId, kind);
+    }
+  } catch {
+    // sessions.json missing or unreadable — all sessions will be 'unknown'
+  }
+
+  return kindMap;
+}
+
+/**
  * Resolve session directory path
  */
 export function resolveSessionDir(customPath) {
@@ -133,6 +164,7 @@ export async function parseSessionFile(filePath) {
  */
 export async function* parseAllSessions(sessionDir, { since, until, timezone } = {}) {
   const files = listSessionFiles(sessionDir);
+  const kindMap = loadSessionKinds(sessionDir);
 
   // Process in batches of 10 for parallelism
   const BATCH = 10;
@@ -141,6 +173,9 @@ export async function* parseAllSessions(sessionDir, { since, until, timezone } =
     const results = await Promise.all(batch.map(parseSessionFile));
     for (const session of results) {
       if (!session.timestamp) continue;
+
+      // Attach kind from sessions.json metadata
+      session.kind = kindMap.get(session.id) || 'unknown';
 
       // Date filtering
       const sessionDate = getLocalDate(session.timestamp, timezone);

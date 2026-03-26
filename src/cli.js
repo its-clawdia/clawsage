@@ -4,8 +4,8 @@
  */
 
 import { resolveSessionDir, parseAllSessions, getISOWeek, getMonth } from './parser.js';
-import { aggregateByPeriod, aggregateBySessions } from './aggregate.js';
-import { printPeriodReport, printSessionReport } from './format.js';
+import { aggregateByPeriod, aggregateBySessions, aggregateByKind } from './aggregate.js';
+import { printPeriodReport, printSessionReport, printKindReport } from './format.js';
 
 // ─── Argument Parsing ───────────────────────────────────────────────────────
 
@@ -17,6 +17,7 @@ function parseArgs(argv) {
     until: null,
     json: false,
     breakdown: false,
+    byKind: false,
     timezone: null,
     path: null,
     help: false,
@@ -43,6 +44,9 @@ function parseArgs(argv) {
         break;
       case '--breakdown':
         opts.breakdown = true;
+        break;
+      case '--by-kind':
+        opts.byKind = true;
         break;
       case '--timezone':
         opts.timezone = args[++i];
@@ -94,6 +98,7 @@ Options:
   --until YYYYMMDD    Filter sessions on or before this date
   --json              Output as JSON
   --breakdown         Show per-model cost breakdown
+  --by-kind           Aggregate by session kind (main, cron, hook, direct, group, tui)
   --timezone TZ       Timezone for date grouping (e.g. America/Los_Angeles)
   --path DIR          Custom session directory
   --help, -h          Show this help
@@ -128,7 +133,10 @@ async function main() {
   try {
     let data;
 
-    if (opts.command === 'session') {
+    if (opts.byKind) {
+      const sessionStream = parseAllSessions(sessionDir, streamOpts);
+      data = await aggregateByKind(sessionStream);
+    } else if (opts.command === 'session') {
       const sessionStream = parseAllSessions(sessionDir, streamOpts);
       data = await aggregateBySessions(sessionStream, {
         breakdown: opts.breakdown,
@@ -155,7 +163,9 @@ async function main() {
       return;
     }
 
-    if (opts.command === 'session') {
+    if (opts.byKind) {
+      printKindReport(data);
+    } else if (opts.command === 'session') {
       printSessionReport(data, { breakdown: opts.breakdown });
     } else {
       printPeriodReport(data, { mode: opts.command, breakdown: opts.breakdown });
