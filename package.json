@@ -1,10 +1,10 @@
 {
-  "name": "@its-clawdia/ocusage",
-  "version": "1.0.1",
+  "name": "clawsage",
+  "version": "1.0.2",
   "description": "CLI tool for analyzing OpenClaw token usage and costs from local session logs",
   "type": "module",
   "bin": {
-    "ocusage": "./src/cli.js"
+    "clawsage": "./src/cli.js"
   },
   "files": [
     "src/"

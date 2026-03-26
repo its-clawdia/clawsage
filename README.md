@@ -1,4 +1,4 @@
-# ocusage
+# clawsage
 
 OpenClaw Usage — cost analysis CLI for OpenClaw session logs.
 
@@ -6,17 +6,17 @@ OpenClaw Usage — cost analysis CLI for OpenClaw session logs.
 
 ```bash
 # Run without installing
-npx ocusage@latest
-bunx ocusage@latest
+npx clawsage@latest
+bunx clawsage@latest
 
 # Or install globally
-npm install -g ocusage
+npm install -g clawsage
 ```
 
 ## Usage
 
 ```
-ocusage [command] [options]
+clawsage [command] [options]
 
 Commands:
   daily    (default) Aggregate costs by date
@@ -37,14 +37,14 @@ Options:
 ## Examples
 
 ```bash
-ocusage                     # Daily report
-ocusage daily               # Daily report
-ocusage monthly             # Monthly report
-ocusage weekly              # Weekly report
-ocusage session             # Per-session breakdown
-ocusage --since 20260301    # Filter from March 2026
-ocusage --json              # JSON output
-ocusage --breakdown         # Per-model cost breakdown
+clawsage                     # Daily report
+clawsage daily               # Daily report
+clawsage monthly             # Monthly report
+clawsage weekly              # Weekly report
+clawsage session             # Per-session breakdown
+clawsage --since 20260301    # Filter from March 2026
+clawsage --json              # JSON output
+clawsage --breakdown         # Per-model cost breakdown
 ```
 
 ## Data Source
