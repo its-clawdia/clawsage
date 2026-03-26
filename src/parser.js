@@ -46,7 +46,7 @@ export function listSessionFiles(dirs) {
   for (const dir of dirs) {
     try {
       const entries = fs.readdirSync(dir)
-        .filter(f => f.includes('.jsonl') && !f.endsWith('.lock'))
+        .filter(f => f.includes('.jsonl') && !f.endsWith('.lock') && !f.includes('.acp-stream.'))
         .map(f => path.join(dir, f));
       files.push(...entries);
     } catch {
