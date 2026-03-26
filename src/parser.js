@@ -7,26 +7,56 @@ import path from 'path';
 import readline from 'readline';
 import os from 'os';
 
-const DEFAULT_SESSION_DIR = path.join(os.homedir(), '.openclaw', 'agents', 'main', 'sessions');
+const DEFAULT_AGENTS_DIR = path.join(os.homedir(), '.openclaw', 'agents');
 
 /**
- * Resolve session directory path
+ * Resolve session directories.
+ * If a custom path is given, use it as a single directory.
+ * Otherwise, scan all agent dirs under ~/.openclaw/agents/{agent}/sessions/
  */
+export function resolveSessionDirs(customPath) {
+  if (customPath) return [path.resolve(customPath)];
+
+  try {
+    const agents = fs.readdirSync(DEFAULT_AGENTS_DIR);
+    const dirs = [];
+    for (const agent of agents) {
+      const sessDir = path.join(DEFAULT_AGENTS_DIR, agent, 'sessions');
+      if (fs.existsSync(sessDir) && fs.statSync(sessDir).isDirectory()) {
+        dirs.push(sessDir);
+      }
+    }
+    return dirs.length > 0 ? dirs : [path.join(DEFAULT_AGENTS_DIR, 'main', 'sessions')];
+  } catch {
+    return [path.join(DEFAULT_AGENTS_DIR, 'main', 'sessions')];
+  }
+}
+
+// Back-compat alias
 export function resolveSessionDir(customPath) {
-  return customPath ? path.resolve(customPath) : DEFAULT_SESSION_DIR;
+  return resolveSessionDirs(customPath)[0];
 }
 
 /**
- * List all .jsonl session files in the directory (exclude .reset. files)
+ * List all .jsonl session files across one or more directories
  */
-export function listSessionFiles(dir) {
-  try {
-    return fs.readdirSync(dir)
-      .filter(f => f.includes('.jsonl'))
-      .map(f => path.join(dir, f));
-  } catch (err) {
-    throw new Error(`Cannot read session directory: ${dir}\n${err.message}`);
+export function listSessionFiles(dirs) {
+  if (!Array.isArray(dirs)) dirs = [dirs];
+  const files = [];
+  for (const dir of dirs) {
+    try {
+      const entries = fs.readdirSync(dir)
+        .filter(f => f.includes('.jsonl') && !f.endsWith('.lock'))
+        .map(f => path.join(dir, f));
+      files.push(...entries);
+    } catch {
+      // skip unreadable dirs
+    }
   }
+  if (files.length === 0) {
+    throw new Error(`No session files found in: ${dirs.join(', ')}`);
+  }
+  return files;
 }
 
 /**
@@ -131,8 +161,8 @@ export async function parseSessionFile(filePath) {
  * Parse all session files in parallel (with concurrency limit)
  * Yields results as they complete
  */
-export async function* parseAllSessions(sessionDir, { since, until, timezone } = {}) {
-  const files = listSessionFiles(sessionDir);
+export async function* parseAllSessions(sessionDirs, { since, until, timezone } = {}) {
+  const files = listSessionFiles(sessionDirs);
 
   // Process in batches of 10 for parallelism
   const BATCH = 10;

@@ -3,7 +3,7 @@
  * cli.js — ocusage CLI entry point
  */
 
-import { resolveSessionDir, parseAllSessions, getISOWeek, getMonth } from './parser.js';
+import { resolveSessionDirs, parseAllSessions, getISOWeek, getMonth } from './parser.js';
 import { aggregateByPeriod, aggregateBySessions } from './aggregate.js';
 import { printPeriodReport, printSessionReport } from './format.js';
 
@@ -117,7 +117,7 @@ async function main() {
     process.exit(0);
   }
 
-  const sessionDir = resolveSessionDir(opts.path);
+  const sessionDirs = resolveSessionDirs(opts.path);
 
   const streamOpts = {
     since: opts.since,
@@ -129,7 +129,7 @@ async function main() {
     let data;
 
     if (opts.command === 'session') {
-      const sessionStream = parseAllSessions(sessionDir, streamOpts);
+      const sessionStream = parseAllSessions(sessionDirs, streamOpts);
       data = await aggregateBySessions(sessionStream, {
         breakdown: opts.breakdown,
         timezone: opts.timezone,
@@ -142,7 +142,7 @@ async function main() {
         monthly: (date) => date.slice(0, 7),
       }[opts.command] || ((date) => date);
 
-      const sessionStream = parseAllSessions(sessionDir, streamOpts);
+      const sessionStream = parseAllSessions(sessionDirs, streamOpts);
       data = await aggregateByPeriod(sessionStream, keyFn, {
         breakdown: opts.breakdown,
         timezone: opts.timezone,
