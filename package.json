@@ -30,6 +30,6 @@
   },
   "homepage": "https://github.com/its-clawdia/clawsage#readme",
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   }
 }
