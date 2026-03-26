@@ -1,15 +1,35 @@
 {
   "name": "ocusage",
-  "version": "1.0.0",
-  "description": "OpenClaw session cost analysis CLI",
+  "version": "1.0.1",
+  "description": "CLI tool for analyzing OpenClaw token usage and costs from local session logs",
   "type": "module",
   "bin": {
     "ocusage": "./src/cli.js"
   },
+  "files": [
+    "src/"
+  ],
   "scripts": {
     "start": "node src/cli.js"
   },
-  "keywords": ["openclaw", "usage", "cost", "analysis"],
+  "keywords": [
+    "openclaw",
+    "usage",
+    "cost",
+    "analysis",
+    "tokens",
+    "llm",
+    "ai",
+    "cli"
+  ],
   "author": "its-clawdia",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/its-clawdia/ocusage.git"
+  },
+  "homepage": "https://github.com/its-clawdia/ocusage#readme",
+  "engines": {
+    "node": ">=18"
+  }
 }

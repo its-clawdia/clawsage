@@ -2,10 +2,15 @@
 
 OpenClaw Usage — cost analysis CLI for OpenClaw session logs.
 
-## Installation
+## Quick Start
 
 ```bash
-npm install -g .
+# Run without installing
+npx ocusage@latest
+bunx ocusage@latest
+
+# Or install globally
+npm install -g ocusage
 ```
 
 ## Usage
