@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * cli.js — ocusage CLI entry point
+ * cli.js — clawsage CLI entry point
  */
 
-import { resolveSessionDirs, parseAllSessions, getISOWeek, getMonth } from './parser.js';
-import { aggregateByPeriod, aggregateBySessions } from './aggregate.js';
+import { allSessions, getAvailableProviders } from './providers/index.js';
+import { aggregateByPeriod, aggregateBySessions, getISOWeek } from './aggregate.js';
 import { printPeriodReport, printSessionReport } from './format.js';
 
 // ─── Argument Parsing ───────────────────────────────────────────────────────
@@ -18,6 +18,7 @@ function parseArgs(argv) {
     json: false,
     breakdown: false,
     timezone: null,
+    provider: null,
     path: null,
     help: false,
   };
@@ -47,6 +48,9 @@ function parseArgs(argv) {
       case '--timezone':
         opts.timezone = args[++i];
         break;
+      case '--provider':
+        opts.provider = args[++i];
+        break;
       case '--path':
         opts.path = args[++i];
         break;
@@ -56,14 +60,12 @@ function parseArgs(argv) {
         break;
       default:
         if (!arg.startsWith('-')) {
-          // Assume it's a subcommand we don't know
           console.error(`Unknown command: ${arg}`);
         }
     }
     i++;
   }
 
-  // Parse YYYYMMDD dates into YYYY-MM-DD
   if (opts.since) {
     opts.since = opts.since.replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3');
   }
@@ -77,11 +79,14 @@ function parseArgs(argv) {
 // ─── Help ────────────────────────────────────────────────────────────────────
 
 function printHelp() {
+  const providers = getAvailableProviders();
+  const providerList = providers.map(p => `${p.id} (${p.label})`).join(', ') || 'none detected';
+
   console.log(`
-ocusage — OpenClaw session cost analysis
+clawsage — OpenClaw + harness cost analysis
 
 Usage:
-  ocusage [command] [options]
+  clawsage [command] [options]
 
 Commands:
   daily    (default) Aggregate costs by date
@@ -95,15 +100,19 @@ Options:
   --json              Output as JSON
   --breakdown         Show per-model cost breakdown
   --timezone TZ       Timezone for date grouping (e.g. America/Los_Angeles)
-  --path DIR          Custom session directory
+  --provider ID       Only show data from a specific provider
+  --path DIR          Custom session directory (OpenClaw provider only)
   --help, -h          Show this help
 
+Detected providers: ${providerList}
+
 Examples:
-  ocusage                        Daily cost report
-  ocusage monthly                Monthly summary
-  ocusage session --breakdown    Sessions with per-model breakdown
-  ocusage --since 20260301       Filter from March 1, 2026
-  ocusage --json | jq .          JSON output piped to jq
+  clawsage                           Combined daily report (all providers)
+  clawsage --provider openclaw       OpenClaw sessions only
+  clawsage --provider claude-code    Claude Code sessions only
+  clawsage session --breakdown       Sessions with per-model breakdown
+  clawsage --since 20260301          Filter from March 1, 2026
+  clawsage --json | jq .             JSON output piped to jq
 `);
 }
 
@@ -117,40 +126,36 @@ async function main() {
     process.exit(0);
   }
 
-  const sessionDirs = resolveSessionDirs(opts.path);
-
   const streamOpts = {
     since: opts.since,
     until: opts.until,
     timezone: opts.timezone,
+    provider: opts.provider,
+    path: opts.path,
   };
 
   try {
     let data;
 
     if (opts.command === 'session') {
-      const sessionStream = parseAllSessions(sessionDirs, streamOpts);
-      data = await aggregateBySessions(sessionStream, {
+      data = await aggregateBySessions(allSessions(streamOpts), {
         breakdown: opts.breakdown,
         timezone: opts.timezone,
       });
     } else {
-      // Period-based aggregation
       const keyFn = {
         daily: (date) => date,
         weekly: (date) => getISOWeek(date),
         monthly: (date) => date.slice(0, 7),
       }[opts.command] || ((date) => date);
 
-      const sessionStream = parseAllSessions(sessionDirs, streamOpts);
-      data = await aggregateByPeriod(sessionStream, keyFn, {
+      data = await aggregateByPeriod(allSessions(streamOpts), keyFn, {
         breakdown: opts.breakdown,
         timezone: opts.timezone,
       });
     }
 
     if (opts.json) {
-      // Serialize (Sets are already converted to arrays in aggregation)
       console.log(JSON.stringify(data, null, 2));
       return;
     }
