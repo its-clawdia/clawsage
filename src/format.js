@@ -14,8 +14,6 @@ const C = {
   magenta: '\x1b[35m',
   white: '\x1b[37m',
   gray: '\x1b[90m',
-  bgBlue: '\x1b[44m',
-  bgDark: '\x1b[48;5;235m',
 };
 
 function c(color, text) {
@@ -29,20 +27,13 @@ function gray(text) { return c('gray', text); }
 function cyan(text) { return c('cyan', text); }
 function green(text) { return c('green', text); }
 function yellow(text) { return c('yellow', text); }
-function blue(text) { return c('blue', text); }
 function magenta(text) { return c('magenta', text); }
 
-/**
- * Format a number with commas
- */
 function fmtNum(n) {
   if (!n || n === 0) return gray('0');
   return n.toLocaleString();
 }
 
-/**
- * Format cost as $X.XXXX
- */
 function fmtCost(n) {
   if (!n || n === 0) return gray('$0.0000');
   if (n < 0.001) return green(`$${n.toFixed(6)}`);
@@ -50,9 +41,6 @@ function fmtCost(n) {
   return yellow(`$${n.toFixed(4)}`);
 }
 
-/**
- * Format token count compactly (e.g. 14.9k, 1.2M)
- */
 function fmtTokens(n) {
   if (!n || n === 0) return gray('0');
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -60,29 +48,18 @@ function fmtTokens(n) {
   return String(n);
 }
 
-/**
- * Pad string to width (accounting for ANSI escape codes)
- */
 function visLen(str) {
   return str.replace(/\x1b\[[0-9;]*m/g, '').length;
 }
 
 function padEnd(str, width) {
-  const vl = visLen(str);
-  return str + ' '.repeat(Math.max(0, width - vl));
+  return str + ' '.repeat(Math.max(0, width - visLen(str)));
 }
 
 function padStart(str, width) {
-  const vl = visLen(str);
-  return ' '.repeat(Math.max(0, width - vl)) + str;
+  return ' '.repeat(Math.max(0, width - visLen(str))) + str;
 }
 
-/**
- * Render a table
- * @param {string[]} headers
- * @param {string[][]} rows
- * @param {'left'|'right'[]} aligns
- */
 function renderTable(headers, rows, aligns) {
   const allRows = [headers, ...rows];
   const cols = headers.length;
@@ -94,12 +71,11 @@ function renderTable(headers, rows, aligns) {
     }
   }
 
-  const sep = gray('┼' + widths.map(w => '─'.repeat(w + 2)).join('┼') + '┼');
   const topBorder = gray('┌' + widths.map(w => '─'.repeat(w + 2)).join('┬') + '┐');
   const midBorder = gray('├' + widths.map(w => '─'.repeat(w + 2)).join('┼') + '┤');
   const botBorder = gray('└' + widths.map(w => '─'.repeat(w + 2)).join('┴') + '┘');
 
-  function renderRow(row, isHeader = false) {
+  function renderRow(row) {
     const cells = row.map((cell, i) => {
       const align = aligns?.[i] || 'left';
       const padded = align === 'right'
@@ -107,36 +83,39 @@ function renderTable(headers, rows, aligns) {
         : padEnd(cell || '', widths[i]);
       return ` ${padded} `;
     });
-    const line = gray('│') + cells.join(gray('│')) + gray('│');
-    return line;
+    return gray('│') + cells.join(gray('│')) + gray('│');
   }
 
-  const lines = [];
-  lines.push(topBorder);
-  lines.push(renderRow(headers.map(h => bold(cyan(h))), true));
+  const lines = [topBorder];
+  lines.push(renderRow(headers.map(h => bold(cyan(h)))));
   lines.push(midBorder);
-
-  for (let i = 0; i < rows.length; i++) {
-    lines.push(renderRow(rows[i]));
+  for (const row of rows) {
+    lines.push(renderRow(row));
   }
   lines.push(botBorder);
-
   return lines.join('\n');
 }
 
 /**
- * Format the "Totals" summary footer
+ * Build a title from available providers
  */
-function formatTotals(rows) {
-  let input = 0, output = 0, cacheRead = 0, cacheWrite = 0, cost = 0;
-  for (const row of rows) {
-    input += row._input || 0;
-    output += row._output || 0;
-    cacheRead += row._cacheRead || 0;
-    cacheWrite += row._cacheWrite || 0;
-    cost += row._cost || 0;
+function buildTitle(mode, providers) {
+  const providerNames = providers && providers.length > 0
+    ? providers.join(' + ')
+    : 'OpenClaw';
+  return `${providerNames} Usage — ${mode} Report`;
+}
+
+/**
+ * Collect all unique provider names from data
+ */
+function collectProviders(data) {
+  const all = new Set();
+  for (const d of data) {
+    if (d.providers) d.providers.forEach(p => all.add(p));
+    if (d.provider) all.add(d.provider);
   }
-  return { input, output, cacheRead, cacheWrite, cost };
+  return [...all];
 }
 
 /**
@@ -148,18 +127,20 @@ export function printPeriodReport(data, { mode = 'daily', breakdown = false } = 
     return;
   }
 
+  const providers = collectProviders(data);
   const title = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' }[mode] || 'Report';
-  console.log(bold(cyan(`\n  OpenClaw Usage — ${title} Report\n`)));
+  console.log(bold(cyan(`\n  ${buildTitle(title, providers)}\n`)));
 
   const headers = ['Period', 'Sessions', 'Input', 'Output', 'Cache↑', 'Cache↓', 'Total Tokens', 'Cost'];
   const aligns = ['left', 'right', 'right', 'right', 'right', 'right', 'right', 'right'];
-  const rawRows = [];
 
-  let totalSessions = 0, totalInput = 0, totalOutput = 0;
-  let totalCacheR = 0, totalCacheW = 0, totalTokens = 0, totalCost = 0;
+  let totalSessions = 0, totalTokens = 0, totalCost = 0;
 
-  for (const d of data) {
-    rawRows.push([
+  const rows = data.map(d => {
+    totalSessions += d.sessions;
+    totalTokens += d.totalTokens;
+    totalCost += d.cost;
+    return [
       bold(d.key),
       fmtNum(d.sessions),
       fmtTokens(d.input),
@@ -167,30 +148,11 @@ export function printPeriodReport(data, { mode = 'daily', breakdown = false } = 
       fmtTokens(d.cacheRead),
       fmtTokens(d.cacheWrite),
       fmtTokens(d.totalTokens),
-      fmtCost(d.cost.total),
-    ]);
-    totalSessions += d.sessions;
-    totalInput += d.input;
-    totalOutput += d.output;
-    totalCacheR += d.cacheRead;
-    totalCacheW += d.cacheWrite;
-    totalTokens += d.totalTokens;
-    totalCost += d.cost.total;
-  }
+      fmtCost(d.cost),
+    ];
+  });
 
-  console.log(renderTable(headers, rawRows, aligns));
-
-  // Totals row
-  const totalsRow = [
-    bold(yellow('TOTAL')),
-    fmtNum(totalSessions),
-    fmtTokens(totalInput),
-    fmtTokens(totalOutput),
-    fmtTokens(totalCacheR),
-    fmtTokens(totalCacheW),
-    fmtTokens(totalTokens),
-    fmtCost(totalCost),
-  ];
+  console.log(renderTable(headers, rows, aligns));
   console.log('\n' + bold('  Totals: ') +
     `${fmtNum(totalSessions)} sessions  ·  ` +
     `${fmtTokens(totalTokens)} tokens  ·  ` +
@@ -208,7 +170,7 @@ export function printPeriodReport(data, { mode = 'daily', breakdown = false } = 
         fmtTokens(b.output),
         fmtTokens(b.cacheRead),
         fmtTokens(b.cacheWrite),
-        fmtCost(b.cost.total),
+        fmtCost(b.cost),
       ]);
       console.log(renderTable(bHeaders, bRows, bAligns));
     }
@@ -226,26 +188,34 @@ export function printSessionReport(data, { breakdown = false } = {}) {
     return;
   }
 
-  console.log(bold(cyan('\n  OpenClaw Usage — Session Report\n')));
+  const providers = collectProviders(data);
+  console.log(bold(cyan(`\n  ${buildTitle('Session', providers)}\n`)));
 
-  const headers = ['Session ID', 'Date', 'Models', 'Input', 'Output', 'Cache↑', 'Cache↓', 'Cost'];
-  const aligns = ['left', 'left', 'left', 'right', 'right', 'right', 'right', 'right'];
+  const showProvider = providers.length > 1;
+  const headers = showProvider
+    ? ['Session ID', 'Source', 'Date', 'Models', 'Input', 'Output', 'Cache↑', 'Cache↓', 'Cost']
+    : ['Session ID', 'Date', 'Models', 'Input', 'Output', 'Cache↑', 'Cache↓', 'Cost'];
+  const aligns = showProvider
+    ? ['left', 'left', 'left', 'left', 'right', 'right', 'right', 'right', 'right']
+    : ['left', 'left', 'left', 'right', 'right', 'right', 'right', 'right'];
 
   let totalCost = 0, totalTokens = 0;
 
   const rows = data.map(s => {
-    totalCost += s.cost.total;
+    totalCost += s.cost;
     totalTokens += s.totalTokens;
-    return [
+    const base = [
       gray(s.key),
+      ...(showProvider ? [dim(s.provider || '?')] : []),
       s.date,
       magenta(s.models.slice(0, 2).map(m => m.replace('claude-', '')).join(', ') || 'unknown'),
       fmtTokens(s.input),
       fmtTokens(s.output),
       fmtTokens(s.cacheRead),
       fmtTokens(s.cacheWrite),
-      fmtCost(s.cost.total),
+      fmtCost(s.cost),
     ];
+    return base;
   });
 
   console.log(renderTable(headers, rows, aligns));
@@ -266,7 +236,7 @@ export function printSessionReport(data, { breakdown = false } = {}) {
         fmtTokens(b.output),
         fmtTokens(b.cacheRead),
         fmtTokens(b.cacheWrite),
-        fmtCost(b.cost.total),
+        fmtCost(b.cost),
       ]);
       console.log(renderTable(bHeaders, bRows, bAligns));
     }
