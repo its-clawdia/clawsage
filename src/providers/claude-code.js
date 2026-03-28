@@ -8,6 +8,7 @@ import path from 'path';
 import readline from 'readline';
 import os from 'os';
 import { getLocalDate, createEmptySession, addUsageToSession } from '../common.js';
+import { loadPricing, calculateCost } from '../pricing.js';
 
 const HOME = os.homedir();
 const DEFAULT_CLAUDE_DIRS = [
@@ -17,46 +18,6 @@ const DEFAULT_CLAUDE_DIRS = [
 
 export const id = 'claude-code';
 export const label = 'Claude Code';
-
-// Embedded pricing per token (Anthropic models commonly used in Claude Code)
-// Source: Anthropic pricing page, March 2026
-const PRICING = {
-  'claude-opus-4-6': {
-    input: 5e-6, output: 25e-6, cacheWrite: 6.25e-6, cacheRead: 5e-7,
-  },
-  'claude-sonnet-4-6': {
-    input: 3e-6, output: 15e-6, cacheWrite: 3.75e-6, cacheRead: 3e-7,
-  },
-  'claude-haiku-4-6': {
-    input: 8e-7, output: 4e-6, cacheWrite: 1e-6, cacheRead: 8e-8,
-  },
-  'claude-sonnet-4-5-20250514': {
-    input: 3e-6, output: 15e-6, cacheWrite: 3.75e-6, cacheRead: 3e-7,
-  },
-  'claude-3-5-sonnet-20241022': {
-    input: 3e-6, output: 15e-6, cacheWrite: 3.75e-6, cacheRead: 3e-7,
-  },
-};
-
-function getPricing(model) {
-  if (PRICING[model]) return PRICING[model];
-  // Try partial match
-  for (const [key, pricing] of Object.entries(PRICING)) {
-    if (model.includes(key)) return pricing;
-  }
-  // Fallback to Sonnet pricing
-  return PRICING['claude-sonnet-4-6'];
-}
-
-function calculateCost(usage, model) {
-  const p = getPricing(model);
-  return (
-    usage.input * p.input +
-    usage.output * p.output +
-    usage.cacheWrite * p.cacheWrite +
-    usage.cacheRead * p.cacheRead
-  );
-}
 
 /**
  * Check if this provider has data available
@@ -143,7 +104,7 @@ async function parseSessionFile(filePath) {
 
     const cost = record.costUSD != null
       ? record.costUSD
-      : calculateCost({ input, output, cacheWrite, cacheRead }, model);
+      : await calculateCost({ input, output, cacheWrite, cacheRead }, model);
 
     addUsageToSession(session, {
       timestamp: record.timestamp,
@@ -164,6 +125,8 @@ async function parseSessionFile(filePath) {
  * Yield all sessions from Claude Code logs
  */
 export async function* sessions({ since, until, timezone } = {}) {
+  // Pre-warm pricing cache so parseSessionFile doesn't fetch per-file
+  await loadPricing();
   const files = findSessionFiles();
 
   const BATCH = 10;
