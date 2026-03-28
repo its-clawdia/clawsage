@@ -1,17 +1,8 @@
-name: Cut release
+name: Auto-release on version bump
 
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: 'Version bump type'
-        required: true
-        default: 'patch'
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  push:
+    branches: [main]
 
 jobs:
   release:
@@ -21,36 +12,30 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 2
 
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-
-      - name: Configure git
+      - name: Check for version bump
+        id: version
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          NEW=$(node -p "require('./package.json').version")
+          OLD=$(git show HEAD~1:package.json | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version")
+          echo "old=$OLD" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
+          if [ "$OLD" != "$NEW" ]; then
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Bump version
-        id: bump
-        run: |
-          npm version ${{ inputs.bump }} --no-git-tag-version
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Commit and tag
-        run: |
-          git add package.json
-          git commit -m "chore(release): v${{ steps.bump.outputs.version }}"
-          git tag "v${{ steps.bump.outputs.version }}"
-          git push origin main --tags
-
-      - name: Create GitHub release
+      - name: Create release
+        if: steps.version.outputs.bumped == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ steps.bump.outputs.version }}" \
+          VERSION="v${{ steps.version.outputs.new }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          gh release create "$VERSION" \
             --target main \
-            --title "v${{ steps.bump.outputs.version }}" \
+            --title "$VERSION" \
             --generate-notes
